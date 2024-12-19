@@ -11,7 +11,7 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interf
 contract FundMe{
     mapping (address => uint256) public fundersToAmount;
     
-    AggregatorV3Interface internal dataFeed;
+    AggregatorV3Interface public dataFeed;
 
     uint256 public constant MINIMUM_VALUE = 100 * 10 ** 18;   // USD
 
@@ -25,9 +25,12 @@ contract FundMe{
     address erc20Addr;             
     bool public getFundSuccess = false;
 
-    constructor(uint256 _lockTime){
+    event FundWithdrawByOwner(uint256);
+    event RefundByFunder(address, uint256);
+
+    constructor(uint256 _lockTime, address dataFeedAddr){
         // sepolia testnet
-        dataFeed = AggregatorV3Interface(0x694AA1769357215DE4FAC081bf1f309aDC325306);
+        dataFeed = AggregatorV3Interface(dataFeedAddr);
         owner = msg.sender;
         deploymentTimestamp = block.timestamp;  // 发送合约所在区块的时间点
         lockTime = _lockTime;
@@ -37,6 +40,10 @@ contract FundMe{
         require(convertEthToUsd(msg.value) >= MINIMUM_VALUE, "Send more ETH");
         require(block.timestamp < deploymentTimestamp + lockTime, "window is closed");
         fundersToAmount[msg.sender] += msg.value;
+    }
+
+    function getRunTime()public view returns(uint256){
+        return deploymentTimestamp + lockTime;
     }
 
     /**
@@ -70,18 +77,23 @@ contract FundMe{
         
         // call（转账中可调用函数或记录数据）：transfer ETH with data return value of function and bool
         bool success;
+        uint256 balance = address(this).balance;
         (success, ) = payable(msg.sender).call{value: address(this).balance}("");
         require(success, "transfer tx failed.");
         getFundSuccess = true;  // flag
+        // emit event
+        emit FundWithdrawByOwner(balance);
     }
 
     function refund() external windowClosed {
         require(convertEthToUsd(address(this).balance) < TARGET, "Target is reached.");
         require(fundersToAmount[msg.sender] != 0, "there is no fund for you");
         bool success;
-        (success, ) = payable(msg.sender).call{value: fundersToAmount[msg.sender]}("");
+        uint256 balance = fundersToAmount[msg.sender];
+        (success, ) = payable(msg.sender).call{value: balance}("");
         require(success, "transfer tx failed.");
         fundersToAmount[msg.sender] = 0;
+        emit RefundByFunder(msg.sender, balance);
     }
 
     function setFunderToAmount(address funder, uint256 amountToUpdate) external {

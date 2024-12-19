@@ -4,10 +4,6 @@
 
 const  { ethers } = require("hardhat")
 
-// const { ProxyAgent, setGlobalDispatcher } = require("undici");
-// proxyAgent = new ProxyAgent("http://127.0.0.1:7890")
-// setGlobalDispatcher(proxyAgent)
-
 async function main() {
 	// create factory
 	const fundMeFactory = await ethers.getContractFactory("FundMe")		// 只有在async函数中才可以使用await关键字
@@ -23,7 +19,7 @@ async function main() {
 		// 解决方法：一般来说，在合约部署完成之后，再等5~6个区块，再验证合约，这个时候大概率可以成功验证
 		console.log("Waiting for 5 confirmations...")
 		await fundMe.deploymentTransaction().wait(5)
-		verify(fundMe.target, [180])
+		await verify(fundMe.target, [180])
 	}else{
 		console.log("verification skipped.")
 	}
